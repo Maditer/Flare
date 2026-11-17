@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -288,6 +289,7 @@ internal fun TimelineContent(
                 ),
         ) {
             LazyStatusVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(1),
                 contentPadding = LocalWindowPadding.current + contentPadding,
                 state = state.lazyListState,
                 allowGalleryMode = allowGalleryMode,

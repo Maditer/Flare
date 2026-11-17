@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
@@ -67,6 +68,7 @@ internal fun NotificationScreen() {
     ) {
         FlareScrollBar(listState) {
             LazyStatusVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(1),
                 contentPadding = LocalWindowPadding.current,
                 state = listState,
             ) {

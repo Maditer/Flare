@@ -25,6 +25,7 @@ internal class FluentDialogScene<T : Any>(
     override val content: @Composable (() -> Unit) = {
         Popup(
             properties = popupProperties,
+            onDismissRequest = onBack,
         ) {
             entry.Content()
         }

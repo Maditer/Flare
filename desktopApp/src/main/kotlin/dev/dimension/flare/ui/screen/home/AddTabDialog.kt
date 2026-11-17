@@ -101,7 +101,9 @@ internal fun AddTabDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 allTabs.accountTabs.onSuccess { accountTabGroups ->
-                    var selectedPage by remember(accountTabGroups) { mutableIntStateOf(0) }
+                    // 不绑定数据 key，账号或标签页变化时不会把选中项重置回「订阅」
+                    var selectedPage by remember { mutableIntStateOf(0) }
+                    val rssPage = accountTabGroups.size
                     Row(
                         modifier =
                             Modifier
@@ -114,35 +116,16 @@ internal fun AddTabDialog(
                             modifier = Modifier.width(140.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
-                            item {
-                                SubtleButton(
-                                    buttonColors =
-                                        if (selectedPage == 0) {
-                                            ButtonDefaults.accentButtonColors()
-                                        } else {
-                                            ButtonDefaults.subtleButtonColors()
-                                        },
-                                    onClick = {
-                                        selectedPage = 0
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Text(
-                                        text = stringResource(Res.string.rss_title),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                }
-                            }
                             itemsIndexed(accountTabGroups) { index, tab ->
                                 SubtleButton(
                                     buttonColors =
-                                        if (selectedPage == index + 1) {
+                                        if (selectedPage == index) {
                                             ButtonDefaults.accentButtonColors()
                                         } else {
                                             ButtonDefaults.subtleButtonColors()
                                         },
                                     onClick = {
-                                        selectedPage = index + 1
+                                        selectedPage = index
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
@@ -177,6 +160,26 @@ internal fun AddTabDialog(
                                     }
                                 }
                             }
+                            // 「订阅」放到账号列表后面
+                            item {
+                                SubtleButton(
+                                    buttonColors =
+                                        if (selectedPage == rssPage) {
+                                            ButtonDefaults.accentButtonColors()
+                                        } else {
+                                            ButtonDefaults.subtleButtonColors()
+                                        },
+                                    onClick = {
+                                        selectedPage = rssPage
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = stringResource(Res.string.rss_title),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
+                            }
                         }
                         Box(
                             modifier =
@@ -184,7 +187,7 @@ internal fun AddTabDialog(
                                     .weight(1f)
                                     .fillMaxHeight(),
                         ) {
-                            if (selectedPage == 0) {
+                            if (selectedPage >= rssPage) {
                                 LazyColumn(
                                     verticalArrangement = Arrangement.spacedBy(2.dp),
                                 ) {
@@ -224,45 +227,36 @@ internal fun AddTabDialog(
                                     }
                                 }
                             } else {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                val accountTabs = accountTabGroups[selectedPage]
+                                // 单列长列表：每个分组标题当 section title，不再需要二次切页
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxHeight(),
                                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                                    modifier = Modifier.fillMaxWidth(),
                                 ) {
-                                    val accountTabs = accountTabGroups[selectedPage - 1]
-                                    var selectedIndex by remember(accountTabs.profile.key) {
-                                        mutableIntStateOf(0)
-                                    }
-                                    if (accountTabs.tabs.size > 1) {
-                                        LiteFilter(
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            accountTabs.tabs.forEachIndexed { index, section ->
-                                                PillButton(
-                                                    selected = selectedIndex == index,
-                                                    onSelectedChanged = { selectedIndex = index },
-                                                ) {
-                                                    UiText(section.title)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    val section = accountTabs.tabs.elementAtOrNull(selectedIndex)
-                                    if (section != null) {
-                                        LazyColumn(
-                                            verticalArrangement = Arrangement.spacedBy(2.dp),
-                                        ) {
-                                            itemsIndexed(section.data) { index, totalCount, item ->
-                                                TabItem(
-                                                    item,
-                                                    modifier =
-                                                        Modifier
-                                                            .listCard(
-                                                                index = index,
-                                                                totalCount = totalCount,
-                                                            ),
+                                    accountTabs.tabs.forEach { section ->
+                                        item(key = "section-${section.title}") {
+                                            Column(
+                                                modifier =
+                                                    Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(top = 12.dp, bottom = 2.dp),
+                                            ) {
+                                                UiText(
+                                                    section.title,
+                                                    style = FluentTheme.typography.subtitle,
                                                 )
                                             }
+                                        }
+                                        itemsIndexed(section.data) { index, totalCount, item ->
+                                            TabItem(
+                                                item,
+                                                modifier =
+                                                    Modifier
+                                                        .listCard(
+                                                            index = index,
+                                                            totalCount = totalCount,
+                                                        ),
+                                            )
                                         }
                                     }
                                 }
@@ -294,11 +288,13 @@ internal fun ListTabItem(
                 FAIcon(
                     FontAwesomeIcons.Solid.CircleMinus,
                     contentDescription = stringResource(Res.string.tab_settings_remove),
+                    tint = FluentTheme.colors.system.critical,
                 )
             } else {
                 FAIcon(
                     FontAwesomeIcons.Solid.CirclePlus,
                     contentDescription = stringResource(Res.string.tab_settings_add),
+                    tint = FluentTheme.colors.text.accent.primary,
                 )
             }
         },

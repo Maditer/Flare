@@ -1,4 +1,59 @@
 # Flare
+
+## 本 fork 的 Compose Desktop 修改
+
+本仓库 fork 自 [flaresocialapp/Flare](https://github.com/flaresocialapp/Flare)。本轮调整集中在 `desktopApp/`，用于 Compose Desktop 的 macOS、Windows 和 Linux 界面。`appleApp/` 中的原生 SwiftUI macOS/iOS 客户端、Android 客户端、Web 客户端及共享业务逻辑没有修改。下方商店和上游发布链接仍指向原版，不包含本 fork 的界面调整。
+
+### 窗口与信息流
+
+- 普通时间轴、发现、通知、搜索、个人资料和本地缓存的帖子列表固定单列；拉宽窗口时不再自动增加列数。用户主动开启的 Deck 多时间轴模式仍保留。
+- 主窗口默认尺寸保持 `520 × 840`，最小尺寸设为 `460 × 620`（AWT 窗口逻辑单位）。启动时检查屏幕可用区域，避免窗口超出屏幕。
+- 首页移除内嵌发布区，直接显示信息流；发布入口移到头像菜单。
+- 首页信息流额外增加左右各 `24dp` 留白。
+- 帖子详情页移除原来的 `480dp` 最大宽度限制，随窗口扩展；统一页面底色，并采用与首页一致的左右留白。
+
+### 顶部标签栏
+
+- 顶栏固定显示，滚动信息流时不再收起。
+- 标签选择改为横向平铺的单行 tab，窄窗口下也保留直接点击切换。
+- tab 只显示粗体文字，隐藏图标；选中项使用 `3dp` 主题强调色下划线，不使用选中底色。
+- 支持鼠标滚轮横向浏览和拖拽左右平移；这里的拖拽用于浏览标签，不改变标签顺序。排序仍在“编辑标签页”中完成。
+- 移除独立刷新按钮，保留当前标签的回顶/刷新交互；右侧保留标签页编辑入口。
+
+### 底部导航与头像菜单
+
+- 原左侧竖向导航改为底部导航：返回按钮在最左侧，主页、通知、搜索在中间居中，头像在最右侧。
+- 将二级页原标题栏返回按钮移到底栏。
+- 返回、主页、通知、搜索替换为本 fork 提供的 SVG 图形，转换为 Compose `ImageVector`，保留原始路径及 `1024 × 1024` 画布比例。实现位于 `desktopApp/src/main/kotlin/dev/dimension/flare/ui/BottomBarIcons.kt`。
+- 四个导航按钮复用同一个图标组件和按钮布局。隐藏文字时，按钮区域统一为 `48 × 48dp`，图标区域统一为 `24 × 24dp`；移除按钮库默认内边距与自定义内边距的叠加，修复返回图标被容器压缩的问题。
+- 头像缩小到 `26dp`；“发布”和“设置”收入头像菜单，账号切换与账号快捷入口继续保留。
+- 头像菜单改用 `MenuFlyout`，修复菜单闪现后关闭的问题；移除菜单内部滚动条，避免无界固有高度测量引发 `Size(4 x 2147483647) is out of range` 崩溃。
+
+### 添加标签页与弹窗
+
+- 添加标签页弹窗左侧先列账号，“订阅”放到最后；有账号时默认选中第一个账号。
+- 账号右侧内容改为一条长列表，原分组 tab 改为 section 标题，减少二次切换。
+- 添加或删除条目时保持当前账号及列表位置，不再因数据刷新跳回“订阅”。
+- 添加图标使用主题强调色，删除图标使用红色。
+- 点击弹窗外部区域可以关闭弹窗。当前实现作用于桌面端 `FluentDialogSceneStrategy` 承载的所有路由弹窗；发布草稿的外点关闭仍需留意，尚未增加草稿保存确认拦截。
+
+### 构建与验证
+
+在项目配置要求的 JDK 环境中，从仓库根目录运行：
+
+```sh
+./gradlew :desktopApp:compileKotlin
+./gradlew :desktopApp:createReleaseDistributable
+```
+
+macOS 应用产物位于 `desktopApp/build/compose/binaries/main-release/app/Flare.app`。本轮已在 macOS 上编译、打包并安装为 `/Applications/Flare Compose.app`，使用独立 bundle ID `dev.dimension.flare.compose` 与 ad-hoc 签名进行对比验收。这些安装处理没有改动仓库中的正式发行签名或商店配置。
+
+Windows/Linux 共用 `desktopApp/` 中的 UI 代码，但本轮未在这两个系统上打包或运行验收；对应安装包应在目标系统或 CI runner 上构建。安装包、账号数据和本地 SwiftUI 临时工程不纳入这次源码提交。
+
+---
+
+## 上游项目介绍
+
 [![license](https://img.shields.io/github/license/flaresocialapp/Flare)](https://github.com/flaresocialapp/Flare/blob/master/LICENSE)
 [![Crowdin](https://badges.crowdin.net/flareapp/localized.svg)](https://crowdin.com/project/flareapp)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/flaresocialapp/Flare)

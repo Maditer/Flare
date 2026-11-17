@@ -1,9 +1,10 @@
 package dev.dimension.flare.ui.screen.status
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.runtime.Composable
@@ -19,11 +20,13 @@ import dev.dimension.flare.LocalWindowPadding
 import dev.dimension.flare.RegisterTabCallback
 import dev.dimension.flare.model.AccountType
 import dev.dimension.flare.model.MicroBlogKey
+import dev.dimension.flare.ui.common.plus
 import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.status.LazyStatusVerticalStaggeredGrid
 import dev.dimension.flare.ui.component.status.statusDetail
 import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.status.StatusContextPresenter
+import io.github.composefluent.FluentTheme
 import io.github.composefluent.component.ProgressBar
 import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
@@ -42,14 +45,21 @@ internal fun StatusScreen(
     Box(
         modifier =
             Modifier
-                .fillMaxSize(),
+                .fillMaxSize()
+                .background(FluentTheme.colors.background.mica.base),
         contentAlignment = Alignment.TopCenter,
     ) {
         FlareScrollBar(listState) {
             LazyStatusVerticalStaggeredGrid(
-                modifier = Modifier.widthIn(max = 480.dp),
+                modifier = Modifier.fillMaxWidth(),
                 columns = StaggeredGridCells.Fixed(1),
-                contentPadding = LocalWindowPadding.current,
+                contentPadding =
+                    LocalWindowPadding.current +
+                        PaddingValues(
+                            top = 16.dp,
+                            start = 24.dp,
+                            end = 24.dp,
+                        ),
                 state = listState,
             ) {
                 statusDetail(state.state, statusKey)

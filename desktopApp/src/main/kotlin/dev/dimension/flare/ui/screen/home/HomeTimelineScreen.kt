@@ -5,12 +5,18 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -18,6 +24,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -27,13 +34,23 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.unit.dp
@@ -56,12 +73,9 @@ import dev.dimension.flare.ui.component.FlareScrollBar
 import dev.dimension.flare.ui.component.LocalAppSettings
 import dev.dimension.flare.ui.component.LocalGlobalAppearance
 import dev.dimension.flare.ui.component.LocalTimelineAppearance
-import dev.dimension.flare.ui.component.TabIcon
-import dev.dimension.flare.ui.component.floatingToolbarVerticalNestedScroll
 import dev.dimension.flare.ui.component.platform.LocalWindowSizeClass
 import dev.dimension.flare.ui.component.platform.WindowSizeClass
 import dev.dimension.flare.ui.component.platform.isBigScreen
-import dev.dimension.flare.ui.component.status.AdaptiveCard
 import dev.dimension.flare.ui.model.map
 import dev.dimension.flare.ui.model.onSuccess
 import dev.dimension.flare.ui.model.takeSuccess
@@ -72,26 +86,21 @@ import dev.dimension.flare.ui.presenter.invoke
 import dev.dimension.flare.ui.presenter.rememberTimelineItemPresenterWithLazyListState
 import dev.dimension.flare.ui.route.Route
 import dev.dimension.flare.ui.route.Router
-import dev.dimension.flare.ui.screen.compose.ComposeDialog
 import dev.dimension.flare.ui.theme.screenHorizontalPadding
 import io.github.composefluent.FluentTheme
-import io.github.composefluent.component.FlyoutPlacement
-import io.github.composefluent.component.MenuFlyoutContainer
-import io.github.composefluent.component.MenuFlyoutItem
-import io.github.composefluent.component.MenuFlyoutSeparator
 import io.github.composefluent.component.NavigationDefaults
 import io.github.composefluent.component.ProgressBar
-import io.github.composefluent.component.SelectorBar
-import io.github.composefluent.component.SelectorBarItem
 import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Text
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import moe.tlaster.precompose.molecule.producePresenter
 import org.apache.commons.lang3.SystemUtils
 import org.jetbrains.compose.resources.stringResource
 import dev.dimension.flare.ui.component.Text as UiText
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun HomeTimelineScreen(
     accountType: AccountType,
@@ -218,15 +227,12 @@ internal fun HomeTimelineScreen(
     } else {
         state.tabState.onSuccess { tabState ->
             state.selectedTab.onSuccess { currentTab ->
-                val showComposeHeader =
-                    LocalGlobalAppearance.current.showComposeInHomeTimeline &&
-                        canComposeState.canCompose.takeSuccess() == true
                 val currentTabTimelineState =
                     key(currentTab.id) {
                         rememberTimelineItemPresenterWithLazyListState(
                             item = currentTab,
                             isHomeTimeline = true,
-                            leadingItemCount = if (showComposeHeader) 1 else 0,
+                            leadingItemCount = 0,
                         )
                     }
                 val autoRefreshInterval = LocalAppSettings.current.homeTimelineAutoRefreshInterval
@@ -264,56 +270,22 @@ internal fun HomeTimelineScreen(
                     Box {
                         TimelineContent(
                             state = currentTabTimelineState,
-                            modifier =
-                                Modifier
-                                    .floatingToolbarVerticalNestedScroll(
-                                        expanded = state.isTopBarExpanded,
-                                        onExpand = {
-                                            state.setTopBarExpanded(true)
-                                        },
-                                        onCollapse = {
-                                            state.setTopBarExpanded(false)
-                                        },
-                                    ),
-                            contentPadding = PaddingValues(top = 48.dp),
+                            contentPadding =
+                                PaddingValues(
+                                    top = 48.dp,
+                                    start = 24.dp,
+                                    end = 24.dp,
+                                ),
                             allowGalleryMode = true,
-                            onScrollToTop = {
-                                state.setTopBarExpanded(true)
-                            },
-                            header =
-                                if (showComposeHeader) {
-                                    {
-                                        Box(
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            AdaptiveCard(
-                                                modifier =
-                                                    Modifier
-                                                        .widthIn(max = 600.dp),
-                                            ) {
-                                                ComposeDialog(
-                                                    onBack = null,
-                                                    accountType = accountType,
-                                                    focusOnOpen = false,
-                                                    modifier = Modifier.padding(top = 16.dp),
-                                                )
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    null
-                                },
                         )
-                        AnimatedVisibility(
-                            visible = state.isTopBarExpanded,
+                        Box(
                             modifier =
                                 Modifier
                                     .fillMaxWidth()
+                                    .background(FluentTheme.colors.background.mica.base)
                                     .clickable {
                                         // prevent click through
                                     },
-                            enter = slideInVertically { -it },
-                            exit = slideOutVertically { -it },
                         ) {
                             Box {
                                 Box(
@@ -332,6 +304,8 @@ internal fun HomeTimelineScreen(
                                                 },
                                             ),
                                 )
+                                val tabScrollState = rememberScrollState()
+                                val tabScrollScope = rememberCoroutineScope()
                                 Row(
                                     modifier =
                                         Modifier
@@ -341,136 +315,89 @@ internal fun HomeTimelineScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    if (isBigScreen()) {
-                                        SelectorBar(
-                                            modifier = Modifier.weight(1f),
-                                        ) {
-                                            tabState.forEachIndexed { index, tab ->
-                                                SelectorBarItem(
-                                                    selected = tab.id == currentTab.id,
-                                                    onSelectedChange = {
-                                                        if (it) {
-                                                            if (tab.id == currentTab.id) {
-                                                                if (currentTabTimelineState.lazyListState.firstVisibleItemIndex == 0) {
-                                                                    currentTabTimelineState.refreshSync()
-                                                                } else {
-                                                                    currentTabTimelineState.lazyListState.requestScrollToItem(
-                                                                        0,
-                                                                    )
-                                                                }
-                                                            } else {
-                                                                state.setSelectedIndex(index)
-                                                            }
+                                    Row(
+                                        modifier =
+                                            Modifier
+                                                .weight(1f)
+                                                .horizontalScroll(tabScrollState)
+                                                .onPointerEvent(PointerEventType.Scroll) { event ->
+                                                    val delta =
+                                                        event.changes
+                                                            .firstOrNull()
+                                                            ?.scrollDelta
+                                                            ?.y ?: 0f
+                                                    if (delta != 0f) {
+                                                        tabScrollScope.launch {
+                                                            tabScrollState.scrollBy(delta * 80f)
+                                                        }
+                                                    }
+                                                }.pointerInput(Unit) {
+                                                    detectDragGestures { change, dragAmount ->
+                                                        change.consume()
+                                                        tabScrollScope.launch {
+                                                            tabScrollState.scrollBy(-dragAmount.x)
+                                                        }
+                                                    }
+                                                },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                    ) {
+                                        tabState.forEachIndexed { index, tab ->
+                                            val selected = tab.id == currentTab.id
+                                            val underlineColor = FluentTheme.colors.text.accent.primary
+                                            Box(
+                                                modifier =
+                                                    Modifier.drawWithContent {
+                                                        drawContent()
+                                                        if (selected) {
+                                                            // 滚动容器里宽度约束无限，这里按自身尺寸画线
+                                                            val thickness = 3.dp.toPx()
+                                                            drawRect(
+                                                                color = underlineColor,
+                                                                topLeft = Offset(0f, size.height - thickness),
+                                                                size = Size(size.width, thickness),
+                                                            )
                                                         }
                                                     },
-                                                    text = {
-                                                        UiText(tab.title)
-                                                    },
-                                                    icon = {
-                                                        TabIcon(
-                                                            tabItem = tab,
-                                                        )
-                                                    },
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        MenuFlyoutContainer(
-                                            modifier =
-                                                Modifier
-                                                    .weight(1f),
-                                            adaptivePlacement = true,
-                                            placement = FlyoutPlacement.BottomAlignedStart,
-                                            flyout = {
-                                                tabState.forEachIndexed { index, tab ->
-                                                    MenuFlyoutItem(
-                                                        selected = tab.id == currentTab.id,
-                                                        onSelectedChanged = {
-                                                            if (it) {
-                                                                if (tab.id == currentTab.id) {
-                                                                    if (currentTabTimelineState.lazyListState.firstVisibleItemIndex == 0) {
-                                                                        currentTabTimelineState.refreshSync()
-                                                                    } else {
-                                                                        currentTabTimelineState.lazyListState.requestScrollToItem(
-                                                                            0,
-                                                                        )
-                                                                    }
-                                                                } else {
-                                                                    state.setSelectedIndex(index)
-                                                                }
-                                                                isFlyoutVisible = false
+                                            ) {
+                                                SubtleButton(
+                                                    onClick = {
+                                                        if (selected) {
+                                                            if (currentTabTimelineState.lazyListState.firstVisibleItemIndex == 0) {
+                                                                currentTabTimelineState.refreshSync()
+                                                            } else {
+                                                                currentTabTimelineState.lazyListState.requestScrollToItem(
+                                                                    0,
+                                                                )
                                                             }
-                                                        },
-                                                        text = {
-                                                            UiText(tab.title)
-                                                        },
-                                                        icon = {
-                                                            TabIcon(
-                                                                tabItem = tab,
-                                                            )
-                                                        },
+                                                        } else {
+                                                            state.setSelectedIndex(index)
+                                                        }
+                                                    },
+                                                ) {
+                                                    UiText(
+                                                        tab.title,
+                                                        style = FluentTheme.typography.bodyStrong,
                                                     )
                                                 }
-                                                MenuFlyoutSeparator()
-                                                MenuFlyoutItem(
-                                                    onClick = {
-                                                        isFlyoutVisible = false
-                                                        onAddTab.invoke()
-                                                    },
-                                                    text = {
-                                                        Text(stringResource(Res.string.tab_settings_add_tab))
-                                                    },
-                                                    icon = {
-                                                        FAIcon(
-                                                            FontAwesomeIcons.Solid.Plus,
-                                                            contentDescription = null,
-                                                        )
-                                                    },
-                                                )
-                                            },
-                                        ) {
-                                            SubtleButton(
-                                                onClick = {
-                                                    isFlyoutVisible = !isFlyoutVisible
-                                                },
-                                            ) {
-                                                TabIcon(currentTab, size = 20.dp)
-                                                UiText(currentTab.title)
-                                                FAIcon(
-                                                    FontAwesomeIcons.Solid.ChevronDown,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(8.dp),
-                                                )
                                             }
-                                        }
-                                    }
-                                    if (isBigScreen()) {
-                                        SubtleButton(
-                                            onClick = {
-                                                onAddTab.invoke()
-                                            },
-                                        ) {
-                                            FAIcon(
-                                                imageVector = FontAwesomeIcons.Solid.Sliders,
-                                                contentDescription = stringResource(Res.string.tab_settings_add_tab),
-                                                modifier = Modifier.size(16.dp),
-                                            )
                                         }
                                     }
                                     SubtleButton(
                                         onClick = {
-                                            currentTabTimelineState.refreshSync()
+                                            onAddTab.invoke()
                                         },
                                     ) {
                                         FAIcon(
-                                            imageVector = FontAwesomeIcons.Solid.ArrowsRotate,
-                                            contentDescription = stringResource(Res.string.refresh),
+                                            imageVector = FontAwesomeIcons.Solid.Sliders,
+                                            contentDescription = stringResource(Res.string.tab_settings_add_tab),
                                             modifier = Modifier.size(16.dp),
                                         )
                                     }
                                 }
                             }
                         }
+
                         AnimatedVisibility(
                             currentTabTimelineState.isRefreshing,
                             enter = slideInVertically { -it },
@@ -493,7 +420,6 @@ internal fun HomeTimelineScreen(
 @Composable
 private fun presenter(accountType: AccountType) =
     run {
-        var isTopBarExpanded by remember { mutableStateOf(true) }
         val state = remember { HomeTimelineWithTabsPresenter() }.invoke()
         var selectedId by remember { mutableStateOf<String?>(null) }
 
@@ -519,13 +445,6 @@ private fun presenter(accountType: AccountType) =
 
             fun setSelectedIndex(index: Int) {
                 state.tabState.onSuccess { selectedId = it.getOrNull(index)?.id }
-            }
-
-            val isTopBarExpanded: Boolean
-                get() = isTopBarExpanded
-
-            fun setTopBarExpanded(expanded: Boolean) {
-                isTopBarExpanded = expanded
             }
         }
     }

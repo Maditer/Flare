@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ExperimentalMediaQueryApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.WindowPosition
@@ -31,7 +32,6 @@ import dev.dimension.flare.ui.component.status.ProvideDesktopTimelineMediaAction
 import dev.dimension.flare.ui.theme.FlareTheme
 import dev.dimension.flare.ui.theme.ProvideComposeWindow
 import dev.dimension.flare.ui.theme.ProvideThemeSettings
-import io.github.composefluent.component.NavigationDefaults
 import io.github.kdroidfilter.nucleus.aot.runtime.AotRuntime
 import io.github.kdroidfilter.nucleus.core.runtime.DeepLinkHandler
 import io.github.kdroidfilter.nucleus.core.runtime.SingleInstanceManager
@@ -108,6 +108,29 @@ fun main(args: Array<String>) {
                         size = DpSize(520.dp, 840.dp),
                     ),
             ) {
+                val density = LocalDensity.current
+                LaunchedEffect(density) {
+                    // AWT 的窗口尺寸用 point 计，retina 下 1 dp ≈ 1 point，不要再乘 density
+                    window.minimumSize =
+                        java.awt
+                            .Dimension(460, 620)
+                    // 窗口尺寸若超出屏幕可用区域，缩到屏幕内，避免内容（尤其是底部导航条）跑到屏幕外
+                    kotlinx.coroutines.delay(500)
+                    val screen =
+                        java.awt.GraphicsEnvironment
+                            .getLocalGraphicsEnvironment()
+                            .maximumWindowBounds
+                    val current = window.size
+                    if (current.width > screen.width || current.height > screen.height) {
+                        window.size =
+                            java.awt
+                                .Dimension(
+                                    minOf(current.width, screen.width - 40),
+                                    minOf(current.height, screen.height - 40),
+                                )
+                        window.setLocationRelativeTo(null)
+                    }
+                }
                 val restoreRequest by restoreRequestFlow.collectAsState()
                 LaunchedEffect(restoreRequest) {
                     if (restoreRequest > 0) {
@@ -128,24 +151,7 @@ fun main(args: Array<String>) {
                                 )
                             }
                         }
-                        PlatformTitleBar {
-                            if (backButtonState.canGoBack) {
-                                NavigationDefaults.BackButton(
-                                    onClick = {
-                                        backButtonState.onClick.invoke()
-                                    },
-                                    modifier =
-                                        Modifier
-                                            .let {
-                                                if (SystemUtils.IS_OS_WINDOWS) {
-                                                    it.width(70.dp)
-                                                } else {
-                                                    it
-                                                }
-                                            },
-                                )
-                            }
-                        }
+                        PlatformTitleBar()
                     }
                 }
             }

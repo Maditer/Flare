@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -103,6 +104,7 @@ internal fun DiscoverScreen(
 
     FlareScrollBar(lazyListState) {
         LazyStatusVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Fixed(1),
             modifier = Modifier.fillMaxSize(),
             state = lazyListState,
             contentPadding = LocalWindowPadding.current,

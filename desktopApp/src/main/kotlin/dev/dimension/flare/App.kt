@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.WindowScope
 import compose.icons.FontAwesomeIcons
 import compose.icons.fontawesomeicons.Solid
+import compose.icons.fontawesomeicons.solid.ArrowLeft
 import compose.icons.fontawesomeicons.solid.Bars
 import compose.icons.fontawesomeicons.solid.Bell
 import compose.icons.fontawesomeicons.solid.Gear
@@ -55,6 +56,7 @@ import compose.icons.fontawesomeicons.solid.MagnifyingGlass
 import compose.icons.fontawesomeicons.solid.Pen
 import compose.icons.fontawesomeicons.solid.UserPlus
 import dev.dimension.flare.model.AccountType
+import dev.dimension.flare.ui.BottomBarIcons
 import dev.dimension.flare.ui.component.AvatarComponent
 import dev.dimension.flare.ui.component.FAIcon
 import dev.dimension.flare.ui.component.FlareScrollBar
@@ -86,9 +88,9 @@ import io.github.composefluent.component.Badge
 import io.github.composefluent.component.Button
 import io.github.composefluent.component.CardExpanderItem
 import io.github.composefluent.component.Expander
-import io.github.composefluent.component.FlyoutContainer
 import io.github.composefluent.component.FlyoutPlacement
 import io.github.composefluent.component.Icon
+import io.github.composefluent.component.MenuFlyout
 import io.github.composefluent.component.SubtleButton
 import io.github.composefluent.component.Text
 import kotlinx.collections.immutable.persistentListOf
@@ -116,60 +118,234 @@ internal fun WindowScope.FlareApp(backButtonState: NavigationBackButtonState) {
         val currentRoute = state.topLevelBackStack.takeSuccess()?.currentRoute
         val showNavigationLabels = LocalGlobalAppearance.current.showBottomBarLabels
 
-        Row {
-            Column(
-                modifier =
-                    Modifier
-                        .background(
-                            FluentTheme.colors.background.mica.base,
-                        ).fillMaxHeight()
-                        .width(72.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(top = LocalWindowPadding.current.calculateTopPadding()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                state.isLoggedIn
-                    .onSuccess { loggedIn ->
-                        if (!loggedIn) {
-                            Button(
-                                onClick = {
-                                    state.navigate(Route.ServiceSelect)
-                                },
-                                modifier =
-                                    Modifier
-                                        .padding(vertical = 4.dp)
-                                        .fillMaxWidth(),
-                            ) {
-                                Column(
-                                    modifier =
-                                        Modifier
-                                            .padding(vertical = 4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    Icon(
-                                        FontAwesomeIcons.Solid.UserPlus,
-                                        contentDescription = stringResource(Res.string.home_login),
-                                        modifier = Modifier.size(16.dp),
-                                    )
-                                    Text(stringResource(Res.string.home_login), maxLines = 1)
+        Column {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                CompositionLocalProvider(
+                    LocalUriHandler provides
+                        remember {
+                            object : UriHandler {
+                                override fun openUri(uri: String) {
+                                    state.deeplinkPresenter.handle(uri)
                                 }
                             }
-                        } else {
-                            FlyoutContainer(
-                                flyout = {
-                                    val scrollableState = rememberScrollState()
-                                    FlareScrollBar(
-                                        state = scrollableState,
+                        },
+                    LocalScrollToTopRegistry provides state.scrollToTopRegistry,
+                ) {
+                    Layer(
+                        modifier = Modifier.fillMaxSize(),
+                        color = FluentTheme.colors.background.mica.base,
+                        shape = RoundedCornerShape(0),
+                        border = null,
+                    ) {
+                        Box {
+                            Router(
+                                backStack =
+                                    state.topLevelBackStack.takeSuccess()?.stack
+                                        ?: persistentListOf(),
+                                navigate = { route -> state.navigate(route) },
+                                replace = { route -> state.replace(route) },
+                                onBack = { state.goBack() },
+                            )
+                            Spacer(
+                                modifier =
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .width(1.dp)
+                                        .background(FluentTheme.colors.stroke.divider.default)
+                                        .align(Alignment.CenterStart),
+                            )
+                            InAppNotificationComponent(
+                                modifier =
+                                    Modifier
+                                        .align(Alignment.TopCenter),
+                                onRelogin = {
+                                    state.navigate(Route.Relogin(it))
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .background(FluentTheme.colors.background.mica.base)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                @Composable
+                fun buildMenuItem(tab: HomeTabsPresenter.State.HomeTabs) {
+                    val selected = currentRoute == getRoute(tab)
+                    val color by animateColorAsState(
+                        targetValue =
+                            if (selected) {
+                                FluentTheme.colors.fillAccent.secondary
+                            } else {
+                                FluentTheme.colors.system.neutral
+                            },
+                    )
+                    NavigationItem(
+                        onClick = {
+                            if (selected) {
+                                state.scrollToTopRegistry.scrollToTop()
+                            } else {
+                                state.navigate(getRoute(tab))
+                            }
+                        },
+                        icon = {
+                            BottomNavigationIcon(
+                                imageVector = tab.icon,
+                                contentDescription = stringResource(tab.title),
+                                tint = color,
+                            )
+                        },
+                        text =
+                            if (showNavigationLabels) {
+                                {
+                                    Text(
+                                        stringResource(tab.title),
+                                        maxLines = 1,
+                                        color = color,
+                                        style = FluentTheme.typography.caption,
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        badge =
+                            if (tab == HomeTabsPresenter.State.HomeTabs.Notifications) {
+                                if (state.notificationState.count > 0) {
+                                    {
+                                        Text(state.notificationState.count.toString())
+                                    }
+                                } else {
+                                    null
+                                }
+                            } else {
+                                null
+                            },
+                    )
+                }
+
+                // 左侧：二级页面返回按钮
+                Box(
+                    modifier = Modifier.width(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (backButtonState.canGoBack) {
+                        NavigationItem(
+                            onClick = {
+                                backButtonState.onClick.invoke()
+                            },
+                            icon = {
+                                BottomNavigationIcon(
+                                    imageVector = BottomBarIcons.ArrowLeft,
+                                    contentDescription = stringResource(Res.string.navigate_back),
+                                    tint = FluentTheme.colors.system.neutral,
+                                )
+                            },
+                            text = null,
+                        )
+                    }
+                }
+
+                // 中部：主页 / 通知 / 搜索 居中
+                Row(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    state.isLoggedIn
+                        .onSuccess { loggedIn ->
+                            if (!loggedIn) {
+                                Button(
+                                    onClick = {
+                                        state.navigate(Route.ServiceSelect)
+                                    },
+                                    modifier =
+                                        Modifier
+                                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                                ) {
+                                    Column(
+                                        modifier =
+                                            Modifier
+                                                .padding(vertical = 4.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                                    ) {
+                                        Icon(
+                                            FontAwesomeIcons.Solid.UserPlus,
+                                            contentDescription = stringResource(Res.string.home_login),
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                        Text(stringResource(Res.string.home_login), maxLines = 1)
+                                    }
+                                }
+                            } else {
+                                tabs.forEach { tab ->
+                                    buildMenuItem(tab)
+                                }
+                            }
+                        }
+                }
+
+                // 右侧：头像，账号菜单里收着发布与设置
+                Box(
+                    modifier = Modifier.width(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    state.isLoggedIn
+                        .onSuccess { loggedIn ->
+                            if (loggedIn) {
+                                var showAccountMenu by remember { mutableStateOf(false) }
+                                Box {
+                                    state.user
+                                        .onSuccess { user ->
+                                            AvatarComponent(
+                                                data = user.avatar,
+                                                contentDescription =
+                                                    stringResource(Res.string.home_open_account_menu),
+                                                modifier =
+                                                    Modifier
+                                                        .clickable(
+                                                            onClickLabel =
+                                                                stringResource(
+                                                                    Res.string.home_open_account_menu,
+                                                                ),
+                                                        ) {
+                                                            showAccountMenu = true
+                                                        }.aspectRatio(1f),
+                                                size = 26.dp,
+                                            )
+                                        }.onLoading {
+                                            SubtleButton(onClick = {}) {
+                                                FAIcon(
+                                                    imageVector = FontAwesomeIcons.Solid.Bars,
+                                                    contentDescription = stringResource(Res.string.home_settings),
+                                                )
+                                            }
+                                        }.onError {
+                                            SubtleButton(onClick = {}) {
+                                                FAIcon(
+                                                    imageVector = FontAwesomeIcons.Solid.Bars,
+                                                    contentDescription = stringResource(Res.string.home_settings),
+                                                )
+                                            }
+                                        }
+                                    MenuFlyout(
+                                        visible = showAccountMenu,
+                                        onDismissRequest = { showAccountMenu = false },
+                                        placement = FlyoutPlacement.TopAlignedEnd,
                                     ) {
                                         Column(
                                             modifier =
                                                 Modifier
-                                                    .widthIn(
-                                                        max = 320.dp,
-                                                    ).heightIn(
-                                                        max = 600.dp,
-                                                    ).verticalScroll(scrollableState),
+                                                    .widthIn(max = 320.dp)
+                                                    .heightIn(max = 520.dp),
+                                            verticalArrangement = Arrangement.spacedBy(2.dp),
                                         ) {
                                             state.items.onSuccess { items ->
                                                 items.forEach { item ->
@@ -210,7 +386,7 @@ internal fun WindowScope.FlareApp(backButtonState: NavigationBackButtonState) {
                                                                 CardExpanderItem(
                                                                     onClick = {
                                                                         state.navigate(shortcut)
-                                                                        isFlyoutVisible = false
+                                                                        showAccountMenu = false
                                                                     },
                                                                     heading = {
                                                                         dev.dimension.flare.ui.component.Text(
@@ -233,294 +409,45 @@ internal fun WindowScope.FlareApp(backButtonState: NavigationBackButtonState) {
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                },
-                                placement = FlyoutPlacement.EndAlignedTop,
-                                adaptivePlacement = true,
-                            ) {
-                                state.user
-                                    .onSuccess {
-                                        Box(
-                                            modifier =
-                                                Modifier
-                                                    .fillMaxWidth(),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            AvatarComponent(
-                                                data = it.avatar,
-                                                contentDescription =
-                                                    stringResource(Res.string.home_open_account_menu),
-                                                modifier =
-                                                    Modifier
-                                                        .clickable(
-                                                            onClickLabel =
-                                                                stringResource(
-                                                                    Res.string.home_open_account_menu,
-                                                                ),
-                                                        ) {
-                                                            isFlyoutVisible = !isFlyoutVisible
-                                                        }.aspectRatio(1f),
-                                            )
-                                        }
-                                    }.onLoading {
-                                        SubtleButton(
-                                            onClick = {
-                                                isFlyoutVisible = !isFlyoutVisible
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            FAIcon(
-                                                imageVector = FontAwesomeIcons.Solid.Bars,
-                                                contentDescription = stringResource(Res.string.home_settings),
-//                                        modifier = Modifier.size(16.dp),
-                                            )
-                                        }
-                                    }.onError {
-                                        SubtleButton(
-                                            onClick = {
-                                                isFlyoutVisible = !isFlyoutVisible
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                        ) {
-                                            FAIcon(
-                                                imageVector = FontAwesomeIcons.Solid.Bars,
-                                                contentDescription = stringResource(Res.string.home_settings),
-//                                        modifier = Modifier.size(16.dp),
+                                            if (state.canComposeState.takeSuccess() == true) {
+                                                CardExpanderItem(
+                                                    onClick = {
+                                                        showAccountMenu = false
+                                                        state.navigate(Route.Compose.New)
+                                                    },
+                                                    heading = {
+                                                        Text(stringResource(Res.string.home_compose))
+                                                    },
+                                                    icon = {
+                                                        FAIcon(
+                                                            imageVector = FontAwesomeIcons.Solid.Pen,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(16.dp),
+                                                        )
+                                                    },
+                                                )
+                                            }
+                                            CardExpanderItem(
+                                                onClick = {
+                                                    showAccountMenu = false
+                                                    state.navigate(Route.Settings)
+                                                },
+                                                heading = {
+                                                    Text(stringResource(Res.string.home_settings))
+                                                },
+                                                icon = {
+                                                    FAIcon(
+                                                        imageVector = FontAwesomeIcons.Solid.Gear,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(16.dp),
+                                                    )
+                                                },
                                             )
                                         }
                                     }
-                            }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-//                        SubtleButton(
-//                            onClick = {
-// //                                state.navigate(Route.MeRoute(AccountType.Specific(user.key)))
-//                            },
-//                        ) {
-//                            Column(
-//                                modifier =
-//                                    Modifier
-//                                        .fillMaxWidth(),
-//                                horizontalAlignment = Alignment.CenterHorizontally,
-//                            ) {
-//                            }
-//                        }
-//                        FlyoutContainer(
-//                            flyout = {
-//                                Box(
-//                                    modifier = Modifier.size(200.dp)
-//                                )
-//                            },
-//                            placement = FlyoutPlacement.EndAlignedTop,
-//                            adaptivePlacement = true,
-//                        ) {
-//                            Box(
-//                                modifier =
-//                                    Modifier
-//                                        .fillMaxWidth(),
-//                                contentAlignment = Alignment.Center,
-//                            ) {
-//                                AvatarComponent(
-//                                    data = user.avatar,
-//                                    modifier =
-//                                        Modifier
-//                                            .clickable {
-//                                                isFlyoutVisible = !isFlyoutVisible
-//                                            }
-//                                            .aspectRatio(1f),
-//                                )
-//                            }
-//                        }
-//                        Spacer(modifier = Modifier.height(8.dp))
-//                        Button(
-//                            onClick = {
-//                                state.navigate(
-//                                    Route.Compose.New,
-//                                )
-//                            },
-//                            modifier =
-//                                Modifier
-//                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-//                                    .fillMaxWidth(),
-//                            iconOnly = true,
-//                        ) {
-//                            Icon(
-//                                FontAwesomeIcons.Solid.Pen,
-//                                contentDescription = stringResource(Res.string.home_compose),
-//                                modifier = Modifier.size(16.dp),
-//                            )
-//                        }
-                    }
-
-                @Composable
-                fun buildMenuItem(tab: HomeTabsPresenter.State.HomeTabs) {
-                    val selected = currentRoute == getRoute(tab)
-                    val color by animateColorAsState(
-                        targetValue =
-                            if (selected) {
-                                FluentTheme.colors.fillAccent.secondary
-                            } else {
-                                FluentTheme.colors.system.neutral
-                            },
-                    )
-                    NavigationItem(
-                        onClick = {
-                            if (selected) {
-                                state.scrollToTopRegistry.scrollToTop()
-                            } else {
-                                state.navigate(getRoute(tab))
-                            }
-                        },
-                        icon = {
-                            FAIcon(
-                                imageVector = tab.icon,
-                                contentDescription = stringResource(tab.title),
-                                tint = color,
-                                modifier =
-                                    Modifier
-                                        .size(24.dp),
-                            )
-                        },
-                        text =
-                            if (showNavigationLabels) {
-                                {
-                                    Text(
-                                        stringResource(tab.title),
-                                        maxLines = 1,
-                                        color = color,
-                                        style = FluentTheme.typography.caption,
-                                    )
                                 }
-                            } else {
-                                null
-                            },
-                        badge =
-                            if (tab == HomeTabsPresenter.State.HomeTabs.Notifications) {
-                                if (state.notificationState.count > 0) {
-                                    {
-                                        Text(state.notificationState.count.toString())
-                                    }
-                                } else {
-                                    null
-                                }
-                            } else {
-                                null
-                            },
-                    )
-                }
-                tabs.forEach { tab ->
-                    buildMenuItem(tab)
-                }
-                val selected = currentRoute == Route.Settings
-                val color by animateColorAsState(
-                    targetValue =
-                        if (selected) {
-                            FluentTheme.colors.fillAccent.secondary
-                        } else {
-                            FluentTheme.colors.system.neutral
-                        },
-                )
-                if (state.canComposeState.takeSuccess() == true) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Box(
-                        modifier =
-                            Modifier
-                                .shadow(4.dp, CircleShape)
-                                .background(
-                                    FluentTheme.colors.fillAccent.secondary,
-                                    CircleShape,
-                                ).fillMaxWidth(0.66f)
-                                .aspectRatio(1f)
-                                .clip(CircleShape)
-                                .clickable(onClickLabel = stringResource(Res.string.home_compose)) {
-                                    state.navigate(
-                                        Route.Compose.New,
-                                    )
-                                },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            FontAwesomeIcons.Solid.Pen,
-                            contentDescription = stringResource(Res.string.home_compose),
-                            modifier = Modifier.size(16.dp),
-                            tint = FluentTheme.colors.text.onAccent.primary,
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.weight(1f))
-                NavigationItem(
-                    icon = {
-                        Icon(
-                            FontAwesomeIcons.Solid.Gear,
-                            contentDescription = stringResource(Res.string.home_settings),
-                            modifier = Modifier.size(24.dp),
-                            tint = color,
-                        )
-                    },
-                    text =
-                        if (showNavigationLabels) {
-                            {
-                                Text(
-                                    stringResource(Res.string.home_settings),
-                                    maxLines = 1,
-                                    style = FluentTheme.typography.caption,
-                                    color = color,
-                                )
-                            }
-                        } else {
-                            null
-                        },
-                    onClick = {
-                        state.navigate(Route.Settings)
-                    },
-                )
-            }
-//            CommandBarSeparator()
-            CompositionLocalProvider(
-                LocalUriHandler provides
-                    remember {
-                        object : UriHandler {
-                            override fun openUri(uri: String) {
-                                state.deeplinkPresenter.handle(uri)
                             }
                         }
-                    },
-                LocalScrollToTopRegistry provides state.scrollToTopRegistry,
-            ) {
-                Layer(
-                    modifier = Modifier.fillMaxSize(),
-                    color = FluentTheme.colors.background.mica.base,
-                    shape = RoundedCornerShape(0),
-                    border = null,
-                ) {
-                    Box {
-                        Router(
-                            backStack =
-                                state.topLevelBackStack.takeSuccess()?.stack
-                                    ?: persistentListOf(),
-                            navigate = { route -> state.navigate(route) },
-                            replace = { route -> state.replace(route) },
-                            onBack = { state.goBack() },
-                        )
-                        Spacer(
-                            modifier =
-                                Modifier
-                                    .fillMaxHeight()
-                                    .width(1.dp)
-                                    .background(FluentTheme.colors.stroke.divider.default)
-                                    .align(Alignment.CenterStart),
-                        )
-                        InAppNotificationComponent(
-                            modifier =
-                                Modifier
-                                    .align(Alignment.TopCenter),
-                            onRelogin = {
-                                state.navigate(Route.Relogin(it))
-                            },
-                        )
-                    }
                 }
             }
         }
@@ -534,6 +461,22 @@ private fun getDirection(data: SecondaryTabsPresenter.Tab): Route? =
     }
 
 @Composable
+private fun BottomNavigationIcon(
+    imageVector: ImageVector,
+    contentDescription: String?,
+    tint: androidx.compose.ui.graphics.Color,
+) {
+    Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
 private fun NavigationItem(
     icon: @Composable () -> Unit,
     text: (@Composable () -> Unit)?,
@@ -543,20 +486,24 @@ private fun NavigationItem(
 ) {
     SubtleButton(
         onClick = onClick,
-        modifier = modifier,
+        modifier =
+            if (text == null) {
+                modifier.size(48.dp)
+            } else {
+                modifier.widthIn(min = 48.dp).heightIn(min = 64.dp)
+            },
+        // Fluent's default button adds 12dp on each side. In the 48dp back
+        // slot, that and the old 8dp content padding shrank a 24dp icon to 8dp.
+        // All bottom navigation buttons use the same padding-free icon mode.
+        iconOnly = true,
     ) {
         Column(
             modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
-                    .let {
-                        if (text != null) {
-                            it
-                        } else {
-                            it.height(40.dp)
-                        }
-                    },
+                if (text == null) {
+                    Modifier.size(48.dp)
+                } else {
+                    Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement =
                 Arrangement.spacedBy(
@@ -612,9 +559,9 @@ private val HomeTabsPresenter.State.HomeTabs.title: StringResource
 private val HomeTabsPresenter.State.HomeTabs.icon: ImageVector
     get() =
         when (this) {
-            HomeTabsPresenter.State.HomeTabs.Home -> FontAwesomeIcons.Solid.House
-            HomeTabsPresenter.State.HomeTabs.Notifications -> FontAwesomeIcons.Solid.Bell
-            HomeTabsPresenter.State.HomeTabs.Discover -> FontAwesomeIcons.Solid.MagnifyingGlass
+            HomeTabsPresenter.State.HomeTabs.Home -> BottomBarIcons.Home
+            HomeTabsPresenter.State.HomeTabs.Notifications -> BottomBarIcons.Notification
+            HomeTabsPresenter.State.HomeTabs.Discover -> BottomBarIcons.Search
         }
 
 @Composable

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
@@ -286,6 +287,7 @@ internal fun ProfileScreen(
             }
             FlareScrollBar(listState) {
                 LazyStatusVerticalStaggeredGrid(
+                    columns = StaggeredGridCells.Fixed(1),
                     contentPadding =
                         PaddingValues(
                             vertical =
